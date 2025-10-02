@@ -7,6 +7,14 @@
  * It preserves all data from the original SQLite database.
  */
 
+// Parse command line arguments
+$dryRun = false;
+foreach ($argv as $arg) {
+    if ($arg === '--dry-run') {
+        $dryRun = true;
+    }
+}
+
 // Set to true to enable debug output
 $debug = true;
 
@@ -16,6 +24,14 @@ function debug($message) {
     if ($debug) {
         echo $message . PHP_EOL;
     }
+}
+
+// Display script mode
+if ($dryRun) {
+    debug("Running in DRY RUN mode - no actual changes will be made to the database");
+} else {
+    debug("Running in LIVE mode - changes will be made to the database");
+    debug("To run in dry run mode, use: php sqlite-to-mysql.php --dry-run");
 }
 
 // Get the database connections from Laravel's configuration
@@ -68,25 +84,31 @@ foreach ($allTableNames as $tableName) {
     }
 }
 
-// Disable foreign key checks temporarily to avoid constraint issues
-$mysqlConnection->statement('SET FOREIGN_KEY_CHECKS=0');
-debug("Disabled foreign key checks for import");
-
-// Truncate all MySQL tables first to ensure clean import
-debug("Truncating all MySQL tables before import...");
-foreach (array_reverse($tableOrder) as $tableName) {
-    try {
-        // Check if table exists in MySQL
-        $tableExists = $mysqlConnection->select("SHOW TABLES LIKE '$tableName'");
-        if (count($tableExists) > 0) {
-            $mysqlConnection->statement("TRUNCATE TABLE $tableName");
-            debug("Truncated table: $tableName");
+// Handle foreign key checks and table truncation based on dry run mode
+if (!$dryRun) {
+    // Disable foreign key checks temporarily to avoid constraint issues
+    $mysqlConnection->statement('SET FOREIGN_KEY_CHECKS=0');
+    debug("Disabled foreign key checks for import");
+    
+    // Truncate all MySQL tables first to ensure clean import
+    debug("Truncating all MySQL tables before import...");
+    foreach (array_reverse($tableOrder) as $tableName) {
+        try {
+            // Check if table exists in MySQL
+            $tableExists = $mysqlConnection->select("SHOW TABLES LIKE '$tableName'");
+            if (count($tableExists) > 0) {
+                $mysqlConnection->statement("TRUNCATE TABLE $tableName");
+                debug("Truncated table: $tableName");
+            }
+        } catch (\Exception $e) {
+            debug("Error truncating table $tableName: " . $e->getMessage());
         }
-    } catch (\Exception $e) {
-        debug("Error truncating table $tableName: " . $e->getMessage());
     }
+    debug("All tables truncated successfully.");
+} else {
+    debug("[DRY RUN] Would disable foreign key checks");
+    debug("[DRY RUN] Would truncate all tables in reverse order");
 }
-debug("All tables truncated successfully.");
 
 // Process tables in the defined order
 foreach ($tableOrder as $tableName) {
@@ -113,35 +135,75 @@ foreach ($tableOrder as $tableName) {
         // Convert data to array format
         $data = json_decode(json_encode($rows), true);
         
-        // Check if table already has data
-        $existingCount = $mysqlConnection->table($tableName)->count();
-        if ($existingCount > 0) {
-            debug("Table $tableName already has $existingCount records. Skipping to avoid duplicates.");
-            continue;
-        }
-        
-        // Insert data into MySQL table in chunks to avoid memory issues
-        $chunkSize = 100;
-        $chunks = array_chunk($data, $chunkSize);
-        
-        foreach ($chunks as $index => $chunk) {
-            try {
-                $mysqlConnection->table($tableName)->insert($chunk);
-                debug("Inserted chunk " . ($index + 1) . " of " . count($chunks) . " into $tableName");
-            } catch (\Exception $e) {
-                debug("Error inserting data into $tableName: " . $e->getMessage());
-                // Continue with next chunk even if there's an error
+        // Clean and sanitize data, especially image URLs
+        foreach ($data as $key => $row) {
+            foreach ($row as $field => $value) {
+                // Check if the field might contain an image URL
+                if (is_string($value) && (
+                    strpos($value, 'http') === 0 || 
+                    strpos($value, 'www.') === 0 || 
+                    strpos($value, 'data:image') === 0
+                )) {
+                    // Sanitize URLs - remove backticks and trailing commas
+                    $value = trim($value, '` ,');
+                    
+                    // Truncate extremely long data:image URLs
+                    if (strpos($value, 'data:image') === 0 && strlen($value) > 1000) {
+                        $value = substr($value, 0, 1000);
+                    }
+                    
+                    $data[$key][$field] = $value;
+                }
             }
         }
         
-        debug("Completed migration for table: $tableName");
+        if (!$dryRun) {
+            // Check if table already has data
+            $existingCount = $mysqlConnection->table($tableName)->count();
+            if ($existingCount > 0) {
+                debug("Table $tableName already has $existingCount records. Skipping to avoid duplicates.");
+                continue;
+            }
+            
+            // Insert data into MySQL table in chunks to avoid memory issues
+            $chunkSize = 50; // Reduced chunk size for better error handling
+            $chunks = array_chunk($data, $chunkSize);
+            
+            foreach ($chunks as $index => $chunk) {
+                try {
+                    $mysqlConnection->table($tableName)->insert($chunk);
+                    debug("Inserted chunk " . ($index + 1) . " of " . count($chunks) . " into $tableName");
+                } catch (\Exception $e) {
+                    debug("Error inserting data into $tableName: " . $e->getMessage());
+                    
+                    // Try inserting records one by one to identify problematic records
+                    debug("Attempting to insert records one by one...");
+                    foreach ($chunk as $record) {
+                        try {
+                            $mysqlConnection->table($tableName)->insert($record);
+                        } catch (\Exception $innerException) {
+                            debug("Problem record: " . json_encode($record));
+                            debug("Error: " . $innerException->getMessage());
+                        }
+                    }
+                }
+            }
+            
+            debug("Completed migration for table: $tableName");
+        } else {
+            debug("[DRY RUN] Would insert " . count($data) . " records into table: $tableName");
+        }
     } catch (\Exception $e) {
         debug("Error processing table $tableName: " . $e->getMessage());
     }
 }
 
-// Re-enable foreign key checks
-$mysqlConnection->statement('SET FOREIGN_KEY_CHECKS=1');
-debug("Re-enabled foreign key checks");
-
-debug("Data migration completed successfully!");
+// Re-enable foreign key checks if not in dry run mode
+if (!$dryRun) {
+    $mysqlConnection->statement('SET FOREIGN_KEY_CHECKS=1');
+    debug("Re-enabled foreign key checks");
+    debug("Data migration completed successfully!");
+} else {
+    debug("[DRY RUN] Would re-enable foreign key checks");
+    debug("[DRY RUN] Data migration simulation completed successfully!");
+}
