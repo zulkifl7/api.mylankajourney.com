@@ -32,13 +32,13 @@ This guide outlines the steps to deploy the My Lanka Journey backend API to prod
    cp .env.production .env
    ```
 3. Update the `.env` file with your database credentials and other settings
-4. Generate an application key:
-   ```
-   php artisan key:generate
-   ```
-5. Install dependencies:
+4. Install dependencies (this must be done before any artisan commands):
    ```
    composer install --optimize-autoloader --no-dev
+   ```
+5. Generate an application key:
+   ```
+   php artisan key:generate
    ```
 6. Run database migrations:
    ```
@@ -143,10 +143,25 @@ To update the application in the future:
 
 ## Troubleshooting
 
-- **CORS Issues**: Verify that the CORS configuration in `config/cors.php` includes all necessary frontend domains
-- **Authentication Problems**: Check that the `SANCTUM_STATEFUL_DOMAINS` in the `.env` file includes all frontend domains
-- **Database Connection Issues**: Verify database credentials and connection settings in the `.env` file
-- **Permission Issues**: Ensure proper permissions on storage and cache directories
+- **Missing Vendor Directory**: If you see errors like `Failed to open stream: No such file or directory in /path/to/artisan` or `Failed opening required '/path/to/vendor/autoload.php'`, it means you need to run `composer install` before any artisan commands.
+
+- **CORS Issues**: Verify that the CORS configuration in `config/cors.php` includes all necessary frontend domains.
+
+- **Authentication Problems**: Check that the `SANCTUM_STATEFUL_DOMAINS` in the `.env` file includes all frontend domains.
+
+- **Database Connection Issues**: Verify database credentials and connection settings in the `.env` file.
+
+- **Permission Issues**: Ensure proper permissions on storage and cache directories:
+  ```
+  chmod -R 755 storage bootstrap/cache
+  chown -R www-data:www-data storage bootstrap/cache
+  ```
+
+- **Artisan Command Errors**: If artisan commands fail, try clearing the configuration cache:
+  ```
+  php artisan config:clear
+  php artisan cache:clear
+  ```
 
 ## Security Considerations
 

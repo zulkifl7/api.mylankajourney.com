@@ -25,12 +25,18 @@ class AppServiceProvider extends ServiceProvider
             if ($trustedProxies === '*') {
                 \Illuminate\Http\Request::setTrustedProxies(
                     ['*'],
-                    \Illuminate\Http\Request::HEADER_X_FORWARDED_ALL
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO
                 );
             } else {
                 \Illuminate\Http\Request::setTrustedProxies(
                     explode(',', $trustedProxies),
-                    \Illuminate\Http\Request::HEADER_X_FORWARDED_ALL
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT | 
+                    \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO
                 );
             }
         }
