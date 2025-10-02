@@ -23,7 +23,14 @@ require __DIR__ . '/../vendor/autoload.php';
 $app = require_once __DIR__ . '/../bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
-// Get the current database connection
+// Set the correct path to the SQLite database file
+$sqlitePath = __DIR__ . '/database.sqlite';
+debug("Using SQLite database at: $sqlitePath");
+
+// Override the SQLite connection configuration
+config(['database.connections.sqlite.database' => $sqlitePath]);
+
+// Get the database connections
 $sqliteConnection = DB::connection('sqlite');
 $mysqlConnection = DB::connection(env('DB_CONNECTION', 'mysql'));
 
