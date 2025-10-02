@@ -163,6 +163,21 @@ To update the application in the future:
   php artisan cache:clear
   ```
 
+- **Undefined Constant Error (HEADER_X_FORWARDED_ALL)**: If you encounter this error:
+  ```
+  Undefined constant Illuminate\Http\Request::HEADER_X_FORWARDED_ALL
+  ```
+  This is because newer Laravel versions have replaced this constant. The fix is in the AppServiceProvider.php file, where we've updated the trusted proxies configuration to use individual header constants:
+  ```php
+  \Illuminate\Http\Request::setTrustedProxies(
+      ['*'],
+      \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR | 
+      \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST | 
+      \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT | 
+      \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO
+  );
+  ```
+
 ## Security Considerations
 
 - Keep the `.env` file secure and never commit it to version control
