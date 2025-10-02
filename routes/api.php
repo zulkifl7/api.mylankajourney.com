@@ -48,7 +48,7 @@ Route::post('/trip-plans', [TripPlanController::class, 'store'])->name('trip-pla
 Route::post('/subscriptions', [SubscriptionController::class, 'store']);
 
 // Admin Routes
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
+Route::middleware('auth:sanctum')->prefix('admin')->name('admin.')->group(function () {
     Route::apiResource('countries', \App\Http\Controllers\Admin\AdminCountryController::class);
     Route::apiResource('gallery-cities', \App\Http\Controllers\Admin\AdminGalleryCityController::class);
     Route::apiResource('locations', \App\Http\Controllers\Admin\AdminLocationController::class);
