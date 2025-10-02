@@ -26,6 +26,9 @@ return [
         'http://localhost:5176',
         'http://localhost:8080',
         'http://localhost:8081',
+        'https://mylankajourney.com',
+        'https://www.mylankajourney.com',
+        'https://admin.mylankajourney.com',
     ],
 
     'allowed_origins_patterns' => [],
